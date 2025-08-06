@@ -1,0 +1,358 @@
+{
+  "name": "Hospital Appointment Notification Scenario",
+  "description": "Comprehensive notification system for hospital appointments using Make.ai",
+  "version": "1.0",
+  "modules": [
+    {
+      "id": 1,
+      "module": "webhook",
+      "version": 1,
+      "parameters": {
+        "hook": "appointment-webhook",
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 0
+        },
+        "restore": {},
+        "parameters": [
+          {
+            "name": "hook",
+            "type": "hook",
+            "label": "Webhook",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "module": "util:Router",
+      "version": 1,
+      "parameters": {},
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": 3,
+      "module": "gmail:ActionSendEmail",
+      "version": 1,
+      "parameters": {
+        "account": "gmail_account"
+      },
+      "mapper": {
+        "to": "{{1.patient_email}}",
+        "subject": "{{if(1.notification_type = \"confirmation\"; \"Appointment Confirmed\"; if(1.notification_type = \"reminder\"; \"Appointment Reminder\"; \"Appointment Update\"))}}",
+        "content": "{{if(1.notification_type = \"confirmation\"; \"Dear \" + 1.patient_name + \",\\n\\nYour appointment with \" + 1.doctor_name + \" has been confirmed for \" + 1.appointment_date + \" at \" + 1.appointment_time + \".\\n\\nPlease arrive 15 minutes early.\\n\\nBest regards,\\n\" + 1.hospital_name; if(1.notification_type = \"reminder\"; \"Dear \" + 1.patient_name + \",\\n\\nThis is a reminder that you have an appointment with \" + 1.doctor_name + \" tomorrow at \" + 1.appointment_time + \".\\n\\nPlease arrive 15 minutes early.\\n\\nBest regards,\\n\" + 1.hospital_name; \"Dear \" + 1.patient_name + \",\\n\\nThere has been an update to your appointment with \" + 1.doctor_name + \".\\n\\nPlease contact us for more information.\\n\\nBest regards,\\n\" + 1.hospital_name))}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 600,
+          "y": -150
+        },
+        "restore": {
+          "account": {
+            "label": "Gmail Account"
+          }
+        }
+      },
+      "filter": {
+        "name": "Email Notifications",
+        "conditions": [
+          [
+            {
+              "a": "{{1.patient_email}}",
+              "o": "exist"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "module": "twilio:ActionSendSMS",
+      "version": 1,
+      "parameters": {
+        "account": "twilio_account"
+      },
+      "mapper": {
+        "to": "{{1.patient_phone}}",
+        "body": "{{if(1.notification_type = \"confirmation\"; \"Appointment confirmed with \" + 1.doctor_name + \" on \" + 1.appointment_date + \" at \" + 1.appointment_time + \". Please arrive 15 min early. - \" + 1.hospital_name; if(1.notification_type = \"reminder\"; \"Reminder: Appointment with \" + 1.doctor_name + \" tomorrow at \" + 1.appointment_time + \". Please arrive 15 min early. - \" + 1.hospital_name; \"Appointment update with \" + 1.doctor_name + \". Please contact us for details. - \" + 1.hospital_name))}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 600,
+          "y": 0
+        },
+        "restore": {
+          "account": {
+            "label": "Twilio Account"
+          }
+        }
+      },
+      "filter": {
+        "name": "SMS Notifications",
+        "conditions": [
+          [
+            {
+              "a": "{{1.patient_phone}}",
+              "o": "exist"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {},
+      "mapper": {
+        "url": "{{1.callback_url}}",
+        "method": "POST",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "shareCookies": false,
+        "ca": "",
+        "rejectUnauthorized": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "gzip": true,
+        "useMtls": false,
+        "contentType": "application/json",
+        "data": "{\n  \"notification_id\": \"{{1.timestamp}}\",\n  \"status\": \"sent\",\n  \"notification_type\": \"{{1.notification_type}}\",\n  \"patient_name\": \"{{1.patient_name}}\",\n  \"channels\": [\n    {{if(1.patient_email; \"\\\"email\\\"\"; \"\")}}\n    {{if(1.patient_phone; if(1.patient_email; \",\\\"sms\\\"\"; \"\\\"sms\\\"\"); \"\")}}\n  ],\n  \"timestamp\": \"{{1.timestamp}}\"\n}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 600,
+          "y": 150
+        }
+      },
+      "filter": {
+        "name": "Callback Notification",
+        "conditions": [
+          [
+            {
+              "a": "{{1.callback_url}}",
+              "o": "exist"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "module": "util:Sleep",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "delay": "{{if(1.notification_type = \"scheduled_reminder\"; 86400; 0)}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 900,
+          "y": 0
+        }
+      },
+      "filter": {
+        "name": "Delay for Scheduled Reminders",
+        "conditions": [
+          [
+            {
+              "a": "{{1.notification_type}}",
+              "o": "equal",
+              "b": "scheduled_reminder"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "module": "elevenlabs:TextToSpeech",
+      "version": 1,
+      "parameters": {
+        "account": "elevenlabs_account"
+      },
+      "mapper": {
+        "voice_id": "21m00Tcm4TlvDq8ikWAM",
+        "text": "{{if(1.notification_type = \"confirmation\"; \"Hello \" + 1.patient_name + \". Your appointment with \" + 1.doctor_name + \" has been confirmed for \" + 1.appointment_date + \" at \" + 1.appointment_time + \". Please arrive 15 minutes early. Thank you.\"; if(1.notification_type = \"reminder\"; \"Hello \" + 1.patient_name + \". This is a reminder that you have an appointment with \" + 1.doctor_name + \" tomorrow at \" + 1.appointment_time + \". Please arrive 15 minutes early. Thank you.\"; \"Hello \" + 1.patient_name + \". There has been an update to your appointment with \" + 1.doctor_name + \". Please contact the hospital for more information. Thank you.\"))}}",
+        "model_id": "eleven_multilingual_v2",
+        "voice_settings": {
+          "stability": 0.7,
+          "similarity_boost": 0.8,
+          "style": 0.2,
+          "use_speaker_boost": true
+        }
+      },
+      "metadata": {
+        "designer": {
+          "x": 900,
+          "y": -150
+        },
+        "restore": {
+          "account": {
+            "label": "ElevenLabs Account"
+          }
+        }
+      },
+      "filter": {
+        "name": "Voice Notifications",
+        "conditions": [
+          [
+            {
+              "a": "{{1.type}}",
+              "o": "equal",
+              "b": "voice_notification"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "module": "util:SetVariable",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "name": "emergency_priority",
+        "value": "{{if(1.priority = \"high\" or 1.user_intent = \"emergency\"; \"URGENT\"; \"NORMAL\")}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 1200,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": 9,
+      "module": "slack:ActionPostMessage",
+      "version": 1,
+      "parameters": {
+        "account": "slack_account"
+      },
+      "mapper": {
+        "channel": "#hospital-alerts",
+        "text": "{{if(8.emergency_priority = \"URGENT\"; \"🚨 EMERGENCY ALERT 🚨\\n\"; \"📋 Hospital Notification\\n\")}}Patient: {{1.patient_name}}\\nType: {{1.notification_type}}\\nDoctor: {{1.doctor_name}}\\nTime: {{1.appointment_date}} {{1.appointment_time}}\\nPriority: {{8.emergency_priority}}\\nOriginal Request: {{1.original_request}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 1200,
+          "y": -150
+        },
+        "restore": {
+          "account": {
+            "label": "Slack Account"
+          }
+        }
+      },
+      "filter": {
+        "name": "Staff Notifications",
+        "conditions": [
+          [
+            {
+              "a": "{{1.source}}",
+              "o": "equal",
+              "b": "voice_assistant"
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": 1,
+      "srcModuleId": 1,
+      "srcPortName": "default",
+      "dstModuleId": 2,
+      "dstPortName": "default"
+    },
+    {
+      "id": 2,
+      "srcModuleId": 2,
+      "srcPortName": "default",
+      "dstModuleId": 3,
+      "dstPortName": "default"
+    },
+    {
+      "id": 3,
+      "srcModuleId": 2,
+      "srcPortName": "default",
+      "dstModuleId": 4,
+      "dstPortName": "default"
+    },
+    {
+      "id": 4,
+      "srcModuleId": 2,
+      "srcPortName": "default",
+      "dstModuleId": 5,
+      "dstPortName": "default"
+    },
+    {
+      "id": 5,
+      "srcModuleId": 2,
+      "srcPortName": "default",
+      "dstModuleId": 6,
+      "dstPortName": "default"
+    },
+    {
+      "id": 6,
+      "srcModuleId": 6,
+      "srcPortName": "default",
+      "dstModuleId": 7,
+      "dstPortName": "default"
+    },
+    {
+      "id": 7,
+      "srcModuleId": 2,
+      "srcPortName": "default",
+      "dstModuleId": 8,
+      "dstPortName": "default"
+    },
+    {
+      "id": 8,
+      "srcModuleId": 8,
+      "srcPortName": "default",
+      "dstModuleId": 9,
+      "dstPortName": "default"
+    }
+  ],
+  "metadata": {
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": false,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "us1.make.com"
+  }
+}
+

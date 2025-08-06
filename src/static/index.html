@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Hospital Appointment Scheduler</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .voice-controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .voice-btn {
+            background: #e74c3c;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+        }
+
+        .voice-btn:hover {
+            background: #c0392b;
+            transform: scale(1.1);
+        }
+
+        .voice-btn.recording {
+            background: #27ae60;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .results {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .results h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .appointment-card {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status.scheduled {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.confirmed {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status.cancelled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .smart-suggestions {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .smart-suggestions h4 {
+            color: #0c5460;
+            margin-bottom: 10px;
+        }
+
+        .suggestion-item {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 3px solid #17a2b8;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #c3e6cb;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Smart Hospital Scheduler</h1>
+            <p>AI-Powered Appointment Management with Voice Support</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Voice Interface -->
+            <div class="card">
+                <h2>🎤 Voice Assistant</h2>
+                <p>Speak naturally to schedule, modify, or cancel appointments</p>
+                
+                <div class="voice-controls">
+                    <button class="voice-btn" id="startRecording" title="Start Recording">🎤</button>
+                    <button class="voice-btn" id="stopRecording" title="Stop Recording" disabled>⏹️</button>
+                    <button class="voice-btn" id="playResponse" title="Play Response" disabled>🔊</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>Voice Input (or type your request):</label>
+                    <textarea id="voiceInput" rows="3" placeholder="Say something like: 'I need to schedule an appointment with a cardiologist for next week'"></textarea>
+                </div>
+                
+                <button class="btn" id="processVoiceRequest">Process Request</button>
+                
+                <div id="voiceResponse" class="smart-suggestions" style="display: none;">
+                    <h4>Assistant Response:</h4>
+                    <div id="responseText"></div>
+                </div>
+            </div>
+
+            <!-- Smart Scheduling -->
+            <div class="card">
+                <h2>🧠 Smart Scheduling</h2>
+                
+                <div class="form-group">
+                    <label>Patient Name:</label>
+                    <input type="text" id="patientName" placeholder="Enter patient name">
+                </div>
+                
+                <div class="form-group">
+                    <label>Phone Number:</label>
+                    <input type="tel" id="patientPhone" placeholder="Enter phone number">
+                </div>
+                
+                <div class="form-group">
+                    <label>Email (optional):</label>
+                    <input type="email" id="patientEmail" placeholder="Enter email address">
+                </div>
+                
+                <div class="form-group">
+                    <label>Department/Specialization:</label>
+                    <select id="department">
+                        <option value="">Select department</option>
+                        <option value="cardiology">Cardiology</option>
+                        <option value="dermatology">Dermatology</option>
+                        <option value="general">General Medicine</option>
+                        <option value="orthopedics">Orthopedics</option>
+                        <option value="pediatrics">Pediatrics</option>
+                        <option value="neurology">Neurology</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Preferred Date:</label>
+                    <input type="date" id="preferredDate">
+                </div>
+                
+                <div class="form-group">
+                    <label>Reason for Visit:</label>
+                    <textarea id="reasonForVisit" rows="2" placeholder="Brief description of the reason for visit"></textarea>
+                </div>
+                
+                <button class="btn" id="getSmartRecommendations">Get Smart Recommendations</button>
+                <button class="btn" id="scheduleAppointment" style="display: none;">Schedule Appointment</button>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            <p>Processing your request...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results" id="resultsSection" style="display: none;">
+            <h3>Results</h3>
+            <div id="resultsContent"></div>
+        </div>
+
+        <!-- Appointment Management -->
+        <div class="card" style="margin-top: 30px;">
+            <h2>📅 Appointment Management</h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <button class="btn" id="viewAppointments">View My Appointments</button>
+                <button class="btn" id="viewDoctors">View Available Doctors</button>
+                <button class="btn" id="testVoice">Test Voice Service</button>
+                <button class="btn" id="clearResults">Clear Results</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let isRecording = false;
+        let mediaRecorder;
+        let audioChunks = [];
+        let currentConversationId = null;
+        let lastResponseAudio = null;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            setMinDate();
+        });
+
+        function setupEventListeners() {
+            // Voice controls
+            document.getElementById('startRecording').addEventListener('click', startRecording);
+            document.getElementById('stopRecording').addEventListener('click', stopRecording);
+            document.getElementById('playResponse').addEventListener('click', playResponse);
+            document.getElementById('processVoiceRequest').addEventListener('click', processVoiceRequest);
+
+            // Smart scheduling
+            document.getElementById('getSmartRecommendations').addEventListener('click', getSmartRecommendations);
+            document.getElementById('scheduleAppointment').addEventListener('click', scheduleAppointment);
+
+            // Appointment management
+            document.getElementById('viewAppointments').addEventListener('click', viewAppointments);
+            document.getElementById('viewDoctors').addEventListener('click', viewDoctors);
+            document.getElementById('testVoice').addEventListener('click', testVoice);
+            document.getElementById('clearResults').addEventListener('click', clearResults);
+        }
+
+        function setMinDate() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('preferredDate').min = tomorrow.toISOString().split('T')[0];
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64Audio = reader.result.split(',')[1];
+                        processAudioInput(base64Audio);
+                    };
+                    reader.readAsDataURL(audioBlob);
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                
+                document.getElementById('startRecording').disabled = true;
+                document.getElementById('startRecording').classList.add('recording');
+                document.getElementById('stopRecording').disabled = false;
+                
+                showMessage('Recording... Speak now!', 'success');
+            } catch (error) {
+                showMessage('Error accessing microphone: ' + error.message, 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+                
+                document.getElementById('startRecording').disabled = false;
+                document.getElementById('startRecording').classList.remove('recording');
+                document.getElementById('stopRecording').disabled = true;
+                
+                showMessage('Processing audio...', 'success');
+            }
+        }
+
+        async function processAudioInput(base64Audio) {
+            try {
+                showLoading(true);
+                
+                const response = await fetch('/api/voice/process-voice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        audio_data: base64Audio,
+                        conversation_id: currentConversationId
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('voiceInput').value = result.user_text;
+                    showVoiceResponse(result.response_text);
+                    
+                    if (result.response_audio) {
+                        lastResponseAudio = result.response_audio;
+                        document.getElementById('playResponse').disabled = false;
+                    }
+                    
+                    currentConversationId = result.conversation_id;
+                } else {
+                    showMessage('Error processing voice: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error processing voice input: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function playResponse() {
+            if (lastResponseAudio) {
+                const audio = new Audio('data:audio/wav;base64,' + lastResponseAudio);
+                audio.play().catch(error => {
+                    showMessage('Error playing audio: ' + error.message, 'error');
+                });
+            }
+        }
+
+        async function processVoiceRequest() {
+            const voiceInput = document.getElementById('voiceInput').value.trim();
+            
+            if (!voiceInput) {
+                showMessage('Please enter or record a voice request', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                
+                const response = await fetch('/api/appointments/parse-request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_input: voiceInput,
+                        user_id: 'web_user_' + Date.now()
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayParsedRequest(result.parsed_data);
+                    fillFormFromParsedData(result.parsed_data);
+                } else {
+                    showMessage('Error parsing request: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error processing request: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function getSmartRecommendations() {
+            const patientName = document.getElementById('patientName').value.trim();
+            const patientPhone = document.getElementById('patientPhone').value.trim();
+            
+            if (!patientName || !patientPhone) {
+                showMessage('Please enter patient name and phone number', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                
+                // Get smart recommendations (this would integrate with the smart scheduling engine)
+                const requestText = buildRequestFromForm();
+                
+                const response = await fetch('/api/appointments/parse-request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_input: requestText,
+                        user_id: patientPhone
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    displaySmartRecommendations(result.parsed_data);
+                    document.getElementById('scheduleAppointment').style.display = 'block';
+                } else {
+                    showMessage('Error getting recommendations: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error getting recommendations: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function scheduleAppointment() {
+            const appointmentData = {
+                patient_name: document.getElementById('patientName').value.trim(),
+                patient_phone: document.getElementById('patientPhone').value.trim(),
+                patient_email: document.getElementById('patientEmail').value.trim(),
+                doctor_name: 'Dr. Smith', // This would come from recommendations
+                department: document.getElementById('department').value,
+                appointment_date: document.getElementById('preferredDate').value,
+                appointment_time: '10:00', // This would come from recommendations
+                notes: document.getElementById('reasonForVisit').value.trim()
+            };
+
+            try {
+                showLoading(true);
+                
+                const response = await fetch('/api/appointments/schedule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        appointment_data: appointmentData
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('Appointment scheduled successfully!', 'success');
+                    displayAppointmentDetails(result.appointment);
+                    clearForm();
+                } else {
+                    showMessage('Error scheduling appointment: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error scheduling appointment: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function viewAppointments() {
+            const phone = prompt('Enter your phone number to view appointments:');
+            if (!phone) return;
+
+            try {
+                showLoading(true);
+                
+                const response = await fetch(`/api/appointments/list?patient_phone=${encodeURIComponent(phone)}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayAppointmentsList(result.appointments);
+                } else {
+                    showMessage('Error retrieving appointments: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error retrieving appointments: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function viewDoctors() {
+            try {
+                showLoading(true);
+                
+                const response = await fetch('/api/appointments/doctors');
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayDoctorsList(result.doctors);
+                } else {
+                    showMessage('Error retrieving doctors: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error retrieving doctors: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function testVoice() {
+            try {
+                showLoading(true);
+                
+                const response = await fetch('/api/voice/test-voice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: 'Hello! This is a test of the voice service. The hospital appointment scheduler is working correctly.'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('Voice service test successful!', 'success');
+                    
+                    if (result.audio_data) {
+                        const audio = new Audio('data:audio/wav;base64,' + result.audio_data);
+                        audio.play();
+                    }
+                } else {
+                    showMessage('Voice service test failed: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error testing voice service: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('voiceResponse').style.display = 'none';
+            document.getElementById('scheduleAppointment').style.display = 'none';
+            clearForm();
+        }
+
+        function clearForm() {
+            document.getElementById('patientName').value = '';
+            document.getElementById('patientPhone').value = '';
+            document.getElementById('patientEmail').value = '';
+            document.getElementById('department').value = '';
+            document.getElementById('preferredDate').value = '';
+            document.getElementById('reasonForVisit').value = '';
+            document.getElementById('voiceInput').value = '';
+        }
+
+        function buildRequestFromForm() {
+            const name = document.getElementById('patientName').value.trim();
+            const phone = document.getElementById('patientPhone').value.trim();
+            const department = document.getElementById('department').value;
+            const date = document.getElementById('preferredDate').value;
+            const reason = document.getElementById('reasonForVisit').value.trim();
+            
+            return `I need to schedule an appointment for ${name} (phone: ${phone}) in ${department} department on ${date}. Reason: ${reason}`;
+        }
+
+        function fillFormFromParsedData(data) {
+            if (data.patient_name) document.getElementById('patientName').value = data.patient_name;
+            if (data.patient_phone) document.getElementById('patientPhone').value = data.patient_phone;
+            if (data.patient_email) document.getElementById('patientEmail').value = data.patient_email;
+            if (data.department_preference) document.getElementById('department').value = data.department_preference;
+            if (data.preferred_date) document.getElementById('preferredDate').value = data.preferred_date;
+            if (data.reason) document.getElementById('reasonForVisit').value = data.reason;
+        }
+
+        function displayParsedRequest(data) {
+            const content = `
+                <h3>Parsed Request</h3>
+                <div class="smart-suggestions">
+                    <h4>Extracted Information:</h4>
+                    ${Object.entries(data).map(([key, value]) => 
+                        value ? `<div class="suggestion-item"><strong>${key.replace('_', ' ')}:</strong> ${value}</div>` : ''
+                    ).join('')}
+                </div>
+            `;
+            
+            showResults(content);
+        }
+
+        function displaySmartRecommendations(data) {
+            const content = `
+                <h3>Smart Recommendations</h3>
+                <div class="smart-suggestions">
+                    <h4>AI-Powered Suggestions:</h4>
+                    <div class="suggestion-item">Based on your request, we recommend scheduling with our ${data.department_preference || 'general'} department.</div>
+                    <div class="suggestion-item">Optimal appointment time: Morning slots (9:00 AM - 11:00 AM) typically have shorter wait times.</div>
+                    <div class="suggestion-item">Preparation: Please arrive 15 minutes early and bring a valid ID.</div>
+                </div>
+            `;
+            
+            showResults(content);
+        }
+
+        function displayAppointmentDetails(appointment) {
+            const content = `
+                <h3>Appointment Scheduled</h3>
+                <div class="appointment-card">
+                    <h4>${appointment.patient_name}</h4>
+                    <p><strong>Doctor:</strong> ${appointment.doctor_name}</p>
+                    <p><strong>Department:</strong> ${appointment.department}</p>
+                    <p><strong>Date:</strong> ${appointment.appointment_date}</p>
+                    <p><strong>Time:</strong> ${appointment.appointment_time}</p>
+                    <p><strong>Status:</strong> <span class="status ${appointment.status}">${appointment.status}</span></p>
+                    ${appointment.notes ? `<p><strong>Notes:</strong> ${appointment.notes}</p>` : ''}
+                </div>
+            `;
+            
+            showResults(content);
+        }
+
+        function displayAppointmentsList(appointments) {
+            if (appointments.length === 0) {
+                showResults('<h3>No appointments found</h3>');
+                return;
+            }
+
+            const content = `
+                <h3>Your Appointments (${appointments.length})</h3>
+                ${appointments.map(apt => `
+                    <div class="appointment-card">
+                        <h4>${apt.patient_name}</h4>
+                        <p><strong>Doctor:</strong> ${apt.doctor_name}</p>
+                        <p><strong>Department:</strong> ${apt.department}</p>
+                        <p><strong>Date:</strong> ${apt.appointment_date}</p>
+                        <p><strong>Time:</strong> ${apt.appointment_time}</p>
+                        <p><strong>Status:</strong> <span class="status ${apt.status}">${apt.status}</span></p>
+                        ${apt.notes ? `<p><strong>Notes:</strong> ${apt.notes}</p>` : ''}
+                    </div>
+                `).join('')}
+            `;
+            
+            showResults(content);
+        }
+
+        function displayDoctorsList(doctors) {
+            if (doctors.length === 0) {
+                showResults('<h3>No doctors found</h3>');
+                return;
+            }
+
+            const content = `
+                <h3>Available Doctors (${doctors.length})</h3>
+                ${doctors.map(doctor => `
+                    <div class="appointment-card">
+                        <h4>Dr. ${doctor.name}</h4>
+                        <p><strong>Specialization:</strong> ${doctor.specialization}</p>
+                        <p><strong>Department:</strong> ${doctor.department}</p>
+                        <p><strong>Available Days:</strong> ${JSON.parse(doctor.available_days).join(', ')}</p>
+                        <p><strong>Working Hours:</strong> ${doctor.start_time} - ${doctor.end_time}</p>
+                        <p><strong>Consultation Duration:</strong> ${doctor.consultation_duration} minutes</p>
+                    </div>
+                `).join('')}
+            `;
+            
+            showResults(content);
+        }
+
+        function showVoiceResponse(text) {
+            document.getElementById('responseText').textContent = text;
+            document.getElementById('voiceResponse').style.display = 'block';
+        }
+
+        function showResults(content) {
+            document.getElementById('resultsContent').innerHTML = content;
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingIndicator').classList.toggle('show', show);
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(messageDiv, container.firstChild);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
