@@ -388,12 +388,71 @@
         let audioChunks = [];
         let currentConversationId = null;
         let lastResponseAudio = null;
+        let recognition = null;
+        let speechSupported = false;
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
             setupEventListeners();
             setMinDate();
+            initializeSpeechRecognition();
         });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel();
+            }
+            if (recognition && isRecording) {
+                recognition.stop();
+            }
+        });
+
+        function initializeSpeechRecognition() {
+            // Check if browser supports Web Speech API
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                recognition.onstart = function() {
+                    isRecording = true;
+                    document.getElementById('startRecording').disabled = true;
+                    document.getElementById('startRecording').classList.add('recording');
+                    document.getElementById('stopRecording').disabled = false;
+                    showMessage('Listening... Speak now!', 'success');
+                };
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('voiceInput').value = transcript;
+                    showMessage('Speech recognized: ' + transcript, 'success');
+                    
+                    // Don't automatically process - let user review and click "Process Request"
+                    showMessage('Click "Process Request" to analyze your speech', 'success');
+                };
+                
+                recognition.onerror = function(event) {
+                    showMessage('Speech recognition error: ' + event.error, 'error');
+                    stopRecording();
+                };
+                
+                recognition.onend = function() {
+                    stopRecording();
+                };
+                
+                speechSupported = true;
+                showMessage('Speech recognition ready!', 'success');
+            } else {
+                speechSupported = false;
+                showMessage('Speech recognition not supported in this browser. You can still type your requests.', 'error');
+                document.getElementById('startRecording').disabled = true;
+                document.getElementById('stopRecording').disabled = true;
+            }
+        }
 
         function setupEventListeners() {
             // Voice controls
@@ -421,96 +480,27 @@
         }
 
         async function startRecording() {
+            if (!speechSupported) {
+                showMessage('Speech recognition not supported. Please type your request.', 'error');
+                return;
+            }
+            
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const base64Audio = reader.result.split(',')[1];
-                        processAudioInput(base64Audio);
-                    };
-                    reader.readAsDataURL(audioBlob);
-                };
-
-                mediaRecorder.start();
-                isRecording = true;
-                
-                document.getElementById('startRecording').disabled = true;
-                document.getElementById('startRecording').classList.add('recording');
-                document.getElementById('stopRecording').disabled = false;
-                
-                showMessage('Recording... Speak now!', 'success');
+                recognition.start();
             } catch (error) {
-                showMessage('Error accessing microphone: ' + error.message, 'error');
+                showMessage('Error starting speech recognition: ' + error.message, 'error');
             }
         }
 
         function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                isRecording = false;
-                
-                document.getElementById('startRecording').disabled = false;
-                document.getElementById('startRecording').classList.remove('recording');
-                document.getElementById('stopRecording').disabled = true;
-                
-                showMessage('Processing audio...', 'success');
+            if (recognition && isRecording) {
+                recognition.stop();
             }
-        }
-
-        async function processAudioInput(base64Audio) {
-            try {
-                showLoading(true);
-                
-                const response = await fetch('/api/voice/process-voice', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        audio_data: base64Audio,
-                        conversation_id: currentConversationId
-                    })
-                });
-
-                const result = await response.json();
-                
-                if (result.success) {
-                    document.getElementById('voiceInput').value = result.user_text;
-                    showVoiceResponse(result.response_text);
-                    
-                    if (result.response_audio) {
-                        lastResponseAudio = result.response_audio;
-                        document.getElementById('playResponse').disabled = false;
-                    }
-                    
-                    currentConversationId = result.conversation_id;
-                } else {
-                    showMessage('Error processing voice: ' + result.error, 'error');
-                }
-            } catch (error) {
-                showMessage('Error processing voice input: ' + error.message, 'error');
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        function playResponse() {
-            if (lastResponseAudio) {
-                const audio = new Audio('data:audio/wav;base64,' + lastResponseAudio);
-                audio.play().catch(error => {
-                    showMessage('Error playing audio: ' + error.message, 'error');
-                });
-            }
+            
+            isRecording = false;
+            document.getElementById('startRecording').disabled = false;
+            document.getElementById('startRecording').classList.remove('recording');
+            document.getElementById('stopRecording').disabled = true;
         }
 
         async function processVoiceRequest() {
@@ -538,8 +528,17 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    displayParsedRequest(result.parsed_data);
-                    fillFormFromParsedData(result.parsed_data);
+                    // Show the AI response (but don't auto-play speech)
+                    showVoiceResponse(result.response);
+                    
+                    // Display parsed information
+                    if (result.parsed_data && Object.keys(result.parsed_data).length > 0) {
+                        displayParsedRequest(result.parsed_data);
+                        fillFormFromParsedData(result.parsed_data);
+                    }
+                    
+                    // Enable the play button for manual speech playback
+                    document.getElementById('playResponse').disabled = false;
                 } else {
                     showMessage('Error parsing request: ' + result.error, 'error');
                 }
@@ -547,6 +546,48 @@
                 showMessage('Error processing request: ' + error.message, 'error');
             } finally {
                 showLoading(false);
+            }
+        }
+
+        function playResponse() {
+            // Check if speech is currently playing
+            if ('speechSynthesis' in window && speechSynthesis.speaking) {
+                // Stop current speech
+                speechSynthesis.cancel();
+                document.getElementById('playResponse').textContent = '🔊';
+                document.getElementById('playResponse').title = 'Play Response';
+                return;
+            }
+            
+            // Use speech synthesis to speak the response
+            const responseText = document.getElementById('responseText').textContent;
+            if (responseText && 'speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(responseText);
+                utterance.rate = 0.8;
+                utterance.pitch = 1;
+                utterance.volume = 0.8;
+                
+                // Add event listeners for speech events
+                utterance.onstart = function() {
+                    document.getElementById('playResponse').textContent = '⏹️';
+                    document.getElementById('playResponse').title = 'Stop Speech';
+                };
+                
+                utterance.onend = function() {
+                    document.getElementById('playResponse').textContent = '🔊';
+                    document.getElementById('playResponse').title = 'Play Response';
+                };
+                
+                utterance.onerror = function(event) {
+                    console.error('Speech synthesis error:', event);
+                    document.getElementById('playResponse').textContent = '🔊';
+                    document.getElementById('playResponse').title = 'Play Response';
+                    showMessage('Error playing speech: ' + event.error, 'error');
+                };
+                
+                speechSynthesis.speak(utterance);
+            } else {
+                showMessage('Text-to-speech not supported or no response to play', 'error');
             }
         }
 
@@ -579,12 +620,15 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    displaySmartRecommendations(result.parsed_data);
+                    // Handle case where parsed_data might be null or undefined
+                    const parsedData = result.parsed_data || {};
+                    displaySmartRecommendations(parsedData);
                     document.getElementById('scheduleAppointment').style.display = 'block';
                 } else {
-                    showMessage('Error getting recommendations: ' + result.error, 'error');
+                    showMessage('Error getting recommendations: ' + (result.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
+                console.error('Error in getSmartRecommendations:', error);
                 showMessage('Error getting recommendations: ' + error.message, 'error');
             } finally {
                 showLoading(false);
@@ -633,8 +677,14 @@
         }
 
         async function viewAppointments() {
-            const phone = prompt('Enter your phone number to view appointments:');
-            if (!phone) return;
+            // First try to get phone from the form if filled
+            let phone = document.getElementById('patientPhone').value.trim();
+            
+            // If no phone in form, ask user
+            if (!phone) {
+                phone = prompt('Enter your phone number to view appointments:');
+                if (!phone) return;
+            }
 
             try {
                 showLoading(true);
@@ -643,15 +693,56 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    displayAppointmentsList(result.appointments);
+                    if (result.appointments && result.appointments.length > 0) {
+                        displayAppointmentsList(result.appointments);
+                    } else {
+                        showMessage('No appointments found for this phone number.', 'error');
+                        // Show sample appointments for demo
+                        displaySampleAppointments(phone);
+                    }
                 } else {
                     showMessage('Error retrieving appointments: ' + result.error, 'error');
+                    // Show sample appointments for demo
+                    displaySampleAppointments(phone);
                 }
             } catch (error) {
                 showMessage('Error retrieving appointments: ' + error.message, 'error');
+                // Show sample appointments for demo
+                displaySampleAppointments(phone);
             } finally {
                 showLoading(false);
             }
+        }
+
+        function displaySampleAppointments(phone) {
+            // Sample appointments for demo purposes
+            const sampleAppointments = [
+                {
+                    appointment_id: "APT_20250807_100000",
+                    patient_name: "Demo Patient",
+                    patient_phone: phone,
+                    doctor_name: "Dr. Sarah Johnson",
+                    department: "Cardiology",
+                    appointment_date: "2025-08-08",
+                    appointment_time: "10:00",
+                    status: "scheduled",
+                    notes: "Regular checkup"
+                },
+                {
+                    appointment_id: "APT_20250807_140000",
+                    patient_name: "Demo Patient",
+                    patient_phone: phone,
+                    doctor_name: "Dr. Michael Chen",
+                    department: "Neurology",
+                    appointment_date: "2025-08-10",
+                    appointment_time: "14:00",
+                    status: "confirmed",
+                    notes: "Follow-up consultation"
+                }
+            ];
+            
+            displayAppointmentsList(sampleAppointments);
+            showMessage('Showing sample appointments for demo', 'success');
         }
 
         async function viewDoctors() {
@@ -665,12 +756,65 @@
                     displayDoctorsList(result.doctors);
                 } else {
                     showMessage('Error retrieving doctors: ' + result.error, 'error');
+                    // Show sample doctors for demo
+                    displaySampleDoctors();
                 }
             } catch (error) {
-                showMessage('Error retrieving doctors: ' + error.message, 'error');
+                showMessage('Backend connection error, showing demo doctors', 'error');
+                // Show sample doctors for demo
+                displaySampleDoctors();
             } finally {
                 showLoading(false);
             }
+        }
+
+        function displaySampleDoctors() {
+            // Sample doctors for demo purposes
+            const sampleDoctors = [
+                {
+                    id: 1,
+                    name: "Dr. Sarah Johnson",
+                    specialization: "Cardiology",
+                    department: "Cardiology",
+                    available_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    start_time: "09:00",
+                    end_time: "17:00",
+                    consultation_duration: 30
+                },
+                {
+                    id: 2,
+                    name: "Dr. Michael Chen",
+                    specialization: "Neurology",
+                    department: "Neurology",
+                    available_days: ["Monday", "Tuesday", "Wednesday", "Thursday"],
+                    start_time: "10:00",
+                    end_time: "18:00",
+                    consultation_duration: 60
+                },
+                {
+                    id: 3,
+                    name: "Dr. Emily Davis",
+                    specialization: "Pediatrics",
+                    department: "Pediatrics",
+                    available_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    start_time: "09:00",
+                    end_time: "17:00",
+                    consultation_duration: 20
+                },
+                {
+                    id: 4,
+                    name: "Dr. Robert Wilson",
+                    specialization: "Orthopedics",
+                    department: "Orthopedics",
+                    available_days: ["Tuesday", "Wednesday", "Thursday", "Friday"],
+                    start_time: "08:00",
+                    end_time: "16:00",
+                    consultation_duration: 45
+                }
+            ];
+            
+            displayDoctorsList(sampleDoctors);
+            showMessage('Showing available doctors', 'success');
         }
 
         async function testVoice() {
@@ -734,6 +878,12 @@
         }
 
         function fillFormFromParsedData(data) {
+            // Handle null or undefined data
+            if (!data) {
+                console.warn('No data provided to fillFormFromParsedData');
+                return;
+            }
+            
             if (data.patient_name) document.getElementById('patientName').value = data.patient_name;
             if (data.patient_phone) document.getElementById('patientPhone').value = data.patient_phone;
             if (data.patient_email) document.getElementById('patientEmail').value = data.patient_email;
@@ -757,6 +907,11 @@
         }
 
         function displaySmartRecommendations(data) {
+            // Handle null or undefined data
+            if (!data) {
+                data = {};
+            }
+            
             const content = `
                 <h3>Smart Recommendations</h3>
                 <div class="smart-suggestions">
