@@ -1,11 +1,12 @@
 """
-Flask routes for appointment management with LangChain MCP agent integration and Make.ai notifications
+Flask routes for appointment management with simple voice handler integration
 """
 from flask import Blueprint, request, jsonify
 import asyncio
 import json
-from src.agents.langchain_mcp_agent import get_hospital_agent, schedule_appointment, process_appointment_request
-from src.integrations.make_client import notification_agent
+import logging
+
+logger = logging.getLogger(__name__)
 
 appointment_bp = Blueprint("appointment", __name__)
 

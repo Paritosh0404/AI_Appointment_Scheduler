@@ -8,7 +8,6 @@ import asyncio
 from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 from src.voice.retell_voice_service import retell_voice_service
-from src.agents.langchain_mcp_agent import handle_voice_request
 import logging
 
 logger = logging.getLogger(__name__)
@@ -195,7 +194,7 @@ def clear_conversation_history_route():
 
 # Legacy routes for backward compatibility
 @voice_bp.route("/process-voice", methods=["POST"])
-async def process_voice_legacy():
+def process_voice_legacy():
     """Process voice input for local speech recognition"""
     try:
         data = request.get_json()
@@ -224,10 +223,10 @@ async def process_voice_legacy():
         
         # Use the simplified voice handler for AI processing
         try:
-            from src.agents.simple_voice_handler import handle_voice_request
+            from src.agents.simple_voice_handler import handle_voice_request_sync
             
             # Process with AI agent
-            response = await handle_voice_request(transcript)
+            response = handle_voice_request_sync(transcript)
             
             result = {
                 "success": True,
